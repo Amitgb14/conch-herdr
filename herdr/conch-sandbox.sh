@@ -2,23 +2,32 @@
 # conch-sandbox.sh runs conch-sandbox at the version pinned below, for the
 # herdr plugin, the herdr app's mod and Orca's recipes, none of which can
 # count on it being installed:
-#   1. conch-sandbox on PATH, if it is that version or newer;
+#   1. conch-sandbox on PATH, if it says it is that version or newer — run
+#      as it is: the pin does not cover a copy somebody installed;
 #   2. else the copy kept in ~/.local/share/conch-sandbox/VERSION/;
 #   3. else that version for this OS and CPU from conch's release, run only
 #      if its sha256 is the one pinned here.
-# A copy whose hash is not the pinned one never runs. --fetch only fetches
-# and checks it, and prints where it is.
+# A kept or fetched copy whose hash is not the pinned one never runs. --fetch
+# only fetches and checks it, and prints where it is.
+#
+# The kept copy's folder is made 0700 and must be this user's.
+#
+# It may be run from a file or piped into sh -s (Orca's recipes): nothing it
+# runs reads stdin, which then holds the rest of the script, and the
+# program gets the stdin the launcher was given — under sh -s that is the
+# pipe's end, so key set and pick want the launcher run from a file.
 #
 # The release (scripts/sandbox-release.sh) writes the version and hashes
-# in; a plugin pins the launcher it was given. CONCH_SANDBOX_URL is where
-# the builds are, for a mirror or a test.
+# in; a plugin pins the launcher it was given, and a version cut again has
+# new hashes, so its plugins need the new launcher. CONCH_SANDBOX_URL is
+# where the builds are, for a mirror or a test.
 set -eu
 
 want=0.2.1-dev
-sha_darwin_arm64=738eb26b000295c7e9116ef2d5875e51ae3b9a5bce4c9d89719038aa34166c89
-sha_darwin_amd64=61f92f9ba94d791b65acb5c5fd92fcc60add1f7657c0ab53dcb7cb16ea15c66b
-sha_linux_arm64=8b7876e4642bbdb7fc22b418d3017f3a28ff69cd1eb5c45b7e3ec6904eaefea0
-sha_linux_amd64=58f6bf4713d77ee0583850fab0eba263690f19f0cf6d37d2c27a565d736e60fe
+sha_darwin_arm64=8b9fe45614cc3c844ef73ff2f6786ea22f9ab678b977c872bdff441f6cea6c29
+sha_darwin_amd64=b08b375af49c1e35cd60ac42fd373e5de46865ba75f1a33936c7c9850e01cbd6
+sha_linux_arm64=985049b5da416edbdc1d79e1b02ad3f6df855958c835c94ce798d2fe24750671
+sha_linux_amd64=27c078ca3b331799eb3142ffbd58a604f2b9987941abfc251d8b1288b94fd958
 
 say() { echo "conch-sandbox.sh: $*" >&2; }
 
@@ -42,50 +51,87 @@ at_least() {
 }
 
 sha256() {
-	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" </dev/null; else shasum -a 256 "$1" </dev/null; fi | cut -d' ' -f1
 }
 
-fetch=
-if [ "${1:-}" = --fetch ]; then fetch=1; shift; fi
+# main has the launcher's stdin on fd 3 as well, for the program; every
+# other command it runs is given /dev/null. (Not main "$@" </dev/null:
+# macOS's bash 3.2 aborts, SIGABRT, when fd 0 is moved while it is still
+# reading the script from it under sh -s.)
+main() {
+	fetch=
+	if [ "${1:-}" = --fetch ]; then fetch=1; shift; fi
 
-if [ -z "$fetch" ] && have=$(conch-sandbox version 2>/dev/null) && at_least "$have" "$want"; then
-	exec conch-sandbox "$@"
-fi
-
-case $(uname -s) in Darwin) os=darwin ;; Linux) os=linux ;; *) say "no conch-sandbox build for $(uname -s)"; exit 1 ;; esac
-case $(uname -m) in x86_64 | amd64) arch=amd64 ;; arm64 | aarch64) arch=arm64 ;; *) say "no conch-sandbox build for $(uname -m)"; exit 1 ;; esac
-eval "pin=\${sha_${os}_${arch}}"
-if [ -z "$pin" ]; then
-	say "this launcher pins no build of conch-sandbox $want for $os-$arch"
-	exit 1
-fi
-
-dir=$HOME/.local/share/conch-sandbox/$want
-bin=$dir/conch-sandbox
-if [ ! -f "$bin" ] || [ "$(sha256 "$bin")" != "$pin" ]; then
-	name=conch-sandbox-$want-$os-$arch
-	url=${CONCH_SANDBOX_URL:-https://github.com/Amitgb14/conch/releases/download/v$want}/$name
-	mkdir -p "$dir"
-	tmp=$(mktemp "$dir/.download.XXXXXX")
-	trap 'rm -f "$tmp"' EXIT
-	say "fetching $name"
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL -o "$tmp" "$url" || { say "could not fetch $url"; exit 1; }
-	else
-		wget -q -O "$tmp" "$url" || { say "could not fetch $url"; exit 1; }
+	# A launcher that is itself the conch-sandbox on PATH would ask itself
+	# its version for ever: one started under another asks nothing.
+	if [ -z "$fetch" ] && [ -z "${CONCH_SANDBOX_LAUNCHER:-}" ]; then
+		CONCH_SANDBOX_LAUNCHER=$$
+		export CONCH_SANDBOX_LAUNCHER
+		if have=$(conch-sandbox version </dev/null 2>/dev/null) && at_least "$have" "$want"; then
+			exec conch-sandbox "$@" <&3 3<&-
+		fi
 	fi
-	got=$(sha256 "$tmp")
-	if [ "$got" != "$pin" ]; then
-		say "$url is not the build this launcher pins (sha256 $got, want $pin): not run"
+
+	case $(uname -s </dev/null) in Darwin) os=darwin ;; Linux) os=linux ;; *) say "no conch-sandbox build for $(uname -s </dev/null)"; exit 1 ;; esac
+	case $(uname -m </dev/null) in x86_64 | amd64) arch=amd64 ;; arm64 | aarch64) arch=arm64 ;; *) say "no conch-sandbox build for $(uname -m </dev/null)"; exit 1 ;; esac
+	eval "pin=\${sha_${os}_${arch}}"
+	if [ -z "$pin" ]; then
+		say "this launcher pins no build of conch-sandbox $want for $os-$arch"
 		exit 1
 	fi
-	chmod 755 "$tmp"
-	mv -f "$tmp" "$bin"
-	trap - EXIT
-fi
 
-if [ -n "$fetch" ]; then
-	echo "$bin"
-	exit 0
-fi
-exec "$bin" "$@"
+	if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+		say "needs sha256sum or shasum to check conch-sandbox, and has neither"
+		exit 1
+	fi
+
+	dir=$HOME/.local/share/conch-sandbox/$want
+	bin=$dir/conch-sandbox
+	# The version's folder is this user's alone; what holds it (~/.local
+	# and the rest, perhaps made here) is made as the umask says.
+	mkdir -p "${dir%/*}" </dev/null
+	(umask 077 && mkdir -p "$dir") </dev/null
+	if [ ! -O "$dir" ]; then
+		say "$dir is not yours: not run"
+		exit 1
+	fi
+	chmod 700 "$dir" </dev/null
+	if [ ! -f "$bin" ] || [ "$(sha256 "$bin")" != "$pin" ]; then
+		name=conch-sandbox-$want-$os-$arch
+		url=${CONCH_SANDBOX_URL:-https://github.com/Amitgb14/conch/releases/download/v$want}/$name
+		tmp=$(mktemp "$dir/.download.XXXXXX" </dev/null)
+		trap 'rm -f "$tmp"' EXIT
+		trap 'rm -f "$tmp"; exit 130' INT TERM
+		say "fetching $name"
+		if command -v curl >/dev/null 2>&1; then
+			curl -fsSL -o "$tmp" "$url" </dev/null || { say "could not fetch $url"; exit 1; }
+		elif command -v wget >/dev/null 2>&1; then
+			wget -q -O "$tmp" "$url" </dev/null || { say "could not fetch $url"; exit 1; }
+		else
+			say "needs curl or wget to fetch $name, and has neither"
+			exit 1
+		fi
+		got=$(sha256 "$tmp")
+		if [ "$got" != "$pin" ]; then
+			say "$url is not the build this launcher pins (sha256 $got, want $pin): not run"
+			exit 1
+		fi
+		chmod 755 "$tmp" </dev/null
+		mv -f "$tmp" "$bin" </dev/null
+		trap - EXIT INT TERM
+	fi
+
+	if [ -n "$fetch" ]; then
+		echo "$bin"
+		exit 0
+	fi
+	# The guard is for a launcher started under this one; the program and
+	# what it starts (herdr, ssh, git) need not carry it.
+	unset CONCH_SANDBOX_LAUNCHER
+	exec "$bin" "$@" <&3 3<&-
+}
+
+# The whole script has been read by the time this line runs, and nothing
+# main starts reads stdin, so none of it can take the rest of a piped
+# sh -s.
+main "$@" 3<&0
