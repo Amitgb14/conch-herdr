@@ -92,7 +92,7 @@ export default class ConchSandbox extends View {
         const space = this.space;
         const repo = space?.folder ? await this.repoOf(space) : null;
         const name = repo?.branch || space?.name || "sandbox";
-        const args = ["create", "--provider", p.name, "--name", name, "--json", "--yes"];
+        const args = ["create", "--provider", p.name, "--name", name, "--json", "--yes", "--tool", "herdr-app"];
         if (repo) args.push("--repo", repo.url, "--branch", repo.branch, "--ref", repo.ref);
         if (this.size[p.name]) args.push("--size", this.size[p.name]);
         const box = await sandbox(args, { json: true, timeout: TEN_MINUTES });
