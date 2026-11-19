@@ -23,11 +23,11 @@
 # where the builds are, for a mirror or a test.
 set -eu
 
-want=0.2.1-dev
-sha_darwin_arm64=8b9fe45614cc3c844ef73ff2f6786ea22f9ab678b977c872bdff441f6cea6c29
-sha_darwin_amd64=b08b375af49c1e35cd60ac42fd373e5de46865ba75f1a33936c7c9850e01cbd6
-sha_linux_arm64=985049b5da416edbdc1d79e1b02ad3f6df855958c835c94ce798d2fe24750671
-sha_linux_amd64=27c078ca3b331799eb3142ffbd58a604f2b9987941abfc251d8b1288b94fd958
+want=0.2.2-beta.1
+sha_darwin_arm64=94c8b812158dc79bb2fd2f6b6305c7d0750499e3e17f90680f8bb4f8b70c12b0
+sha_darwin_amd64=8a563a3d232fe44f37eff97af26df578f8f91f9321fc2bfa19284b1a13bd0e10
+sha_linux_arm64=7fd0bd3c8caaf6842dfd4a9ff532a2e25190cc7cfcda9d859473695b4ae071ee
+sha_linux_amd64=ed1a1573106c4b242308a0f3ed863242b53066c9fa7c624c81aa8e7d4dd3a079
 
 say() { echo "conch-sandbox.sh: $*" >&2; }
 

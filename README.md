@@ -66,7 +66,7 @@ that is on a sandbox, the same dialog offers Sleep, Wake and Delete.
 Early. The plugin manifest passes herdr's own check (`test/test.sh`). The
 app mod has not yet been run in the herdr app: its API changes weekly.
 
-Not usable without conch yet: the launcher pins a local `0.2.1-dev` build, not a published release, and conch-sandbox installs provider files only from a signed registry index, which conch's registry does not publish yet. Until both land, it works only with provider files conch has already installed and a launcher pointed at a local build (`CONCH_SANDBOX_URL`).
+Needs conch for now: the launcher pins conch-sandbox `0.2.2-beta.1` (a pre-release), but conch-sandbox installs provider files only from a signed registry index, which conch's registry does not publish yet. Until it does, it works with provider files conch has already installed.
 
 ## Development
 
