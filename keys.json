@@ -1,0 +1,5 @@
+{
+  "global": {
+    "cmd-alt-s": { "command": "mod.open", "args": { "name": "conch-sandbox" } }
+  }
+}

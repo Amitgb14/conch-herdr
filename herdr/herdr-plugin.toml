@@ -1,0 +1,50 @@
+id = "conch.sandbox"
+name = "conch sandboxes"
+version = "0.1.0"
+min_herdr_version = "0.9.3"
+description = "Make, sleep, wake and delete cloud sandboxes (Daytona, Hetzner, InstaBox…) as herdr machines"
+platforms = ["linux", "macos"]
+
+# Fetches conch-sandbox (a small program, not conch) and checks its sha256.
+[[build]]
+command = ["sh", "conch-sandbox.sh", "--fetch"]
+
+# The picker: provider, name, size; then create, `herdr machine add` and a
+# workspace in the checkout. Boxes herdr no longer knows are listed first.
+[[panes]]
+id = "picker"
+title = "New sandbox"
+placement = "popup"
+width = "70%"
+height = 26
+command = ["sh", "conch-sandbox.sh", "pick", "--tool", "herdr"]
+
+# Bind a key to this action; it opens the picker.
+[[actions]]
+id = "new"
+title = "New sandbox"
+contexts = ["workspace"]
+command = ["sh", "open-picker.sh"]
+
+[[actions]]
+id = "sleep"
+title = "Sleep this sandbox"
+contexts = ["workspace"]
+command = ["sh", "conch-sandbox.sh", "stop", "--from-herdr"]
+
+[[actions]]
+id = "wake"
+title = "Wake this sandbox"
+contexts = ["workspace"]
+command = ["sh", "conch-sandbox.sh", "start", "--from-herdr"]
+
+[[actions]]
+id = "delete"
+title = "Delete this sandbox"
+contexts = ["workspace"]
+command = ["sh", "conch-sandbox.sh", "rm", "--from-herdr"]
+
+# A closed workspace may leave its sandbox running and billing: say so.
+[[events]]
+on = "workspace.closed"
+command = ["sh", "conch-sandbox.sh", "orphans", "--tool", "herdr", "--notify"]
